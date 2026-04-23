@@ -7,7 +7,10 @@ from fastapi import FastAPI
 from src.agents import initialize_registry
 from src.app import register_routers
 from src.config import load_config
+from src.log import suppress_noisy_loggers
 from src.workflows.registry import initialize_workflow_registry
+
+suppress_noisy_loggers()
 
 
 @asynccontextmanager

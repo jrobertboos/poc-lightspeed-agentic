@@ -75,7 +75,7 @@ def _instrument_agent(agent: Agent[None, Any]) -> None:
         else:
             output_str = str(output)
 
-        output_logger.info(f"[{agent_name}] output:\n{output_str}")
+        output_logger.debug(f"[{agent_name}] output:\n{output_str}")
         return output
 
 

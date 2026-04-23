@@ -1,10 +1,6 @@
 """Workflow endpoint for executing graph-based agent workflows."""
 
-import json
-from collections.abc import AsyncIterator
-
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from src.log import get_logger
@@ -20,7 +16,6 @@ class WorkflowRequest(BaseModel):
 
     message: str = Field(..., description="User input to start the workflow")
     workflow_name: str | None = Field(None, description="Workflow name (uses default if not specified)")
-    stream: bool = Field(False, description="Enable streaming response")
 
 
 class WorkflowResponse(BaseModel):
@@ -59,14 +54,8 @@ async def list_workflows() -> WorkflowListResponse:
     return WorkflowListResponse(workflows=workflows)
 
 
-async def _stream_workflow(runner, message: str) -> AsyncIterator[str]:
-    """Stream workflow execution as Server-Sent Events."""
-    async for event in runner.run_stream(message):
-        yield f"data: {json.dumps(event)}\n\n"
-
-
 @router.post("/run", response_model=WorkflowResponse)
-async def run_workflow(request: WorkflowRequest) -> WorkflowResponse | StreamingResponse:
+async def run_workflow(request: WorkflowRequest) -> WorkflowResponse:
     """Execute a workflow with the given input."""
     registry = get_workflow_registry()
     if registry is None:
@@ -89,12 +78,6 @@ async def run_workflow(request: WorkflowRequest) -> WorkflowResponse | Streaming
         raise HTTPException(
             status_code=404,
             detail=f"Workflow '{workflow_name}' not found. Available: {workflow_names}",
-        )
-
-    if request.stream:
-        return StreamingResponse(
-            _stream_workflow(runner, request.message),
-            media_type="text/event-stream",
         )
 
     result = await runner.run(request.message)

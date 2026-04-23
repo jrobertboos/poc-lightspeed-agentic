@@ -6,16 +6,14 @@ as an in-process library via AsyncLlamaStackAsLibraryClient.
 
 from __future__ import annotations
 
+import io
 import json
 import os
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Literal, TypedDict
+import sys
+from contextlib import contextmanager
+from typing import Any, Iterator, Literal, TypedDict
 
 from llama_stack.core.library_client import AsyncLlamaStackAsLibraryClient
-from pydantic_ai import RunContext
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
@@ -28,10 +26,21 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
-from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
+from pydantic_ai.models import Model, ModelRequestParameters
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.usage import RequestUsage
+
+
+@contextmanager
+def _suppress_stdout() -> Iterator[None]:
+    """Temporarily suppress stdout to hide llama_stack config dump."""
+    old_stdout = sys.stdout
+    sys.stdout = io.StringIO()
+    try:
+        yield
+    finally:
+        sys.stdout = old_stdout
 
 
 class LlamaStackModelSettings(TypedDict, total=False):
@@ -103,19 +112,21 @@ class LlamaStackModel(Model):
     async def _ensure_initialized(self) -> AsyncLlamaStackAsLibraryClient:
         """Lazily initialize the client on first use."""
         if self._client is None:
-            # Prevent llama_stack from reconfiguring logging
-            import llama_stack.core.library_client as llama_client_module
-            original_setup = llama_client_module.setup_logging
-            llama_client_module.setup_logging = lambda *args, **kwargs: None
-            try:
-                self._client = AsyncLlamaStackAsLibraryClient(
-                    self._distro,
-                    provider_data=self._provider_data,
-                )
-            finally:
-                llama_client_module.setup_logging = original_setup
+            with _suppress_stdout():            # Prevent llama_stack from reconfiguring logging
+                import llama_stack.core.library_client as llama_client_module
+                original_setup = llama_client_module.setup_logging
+                llama_client_module.setup_logging = lambda *args, **kwargs: None
+                try:
+                    self._client = AsyncLlamaStackAsLibraryClient(
+                        self._distro,
+                        provider_data=self._provider_data,
+                    )
+                finally:
+                    llama_client_module.setup_logging = original_setup
+
         if not self._initialized:
-            await self._client.initialize()
+            with _suppress_stdout():
+                await self._client.initialize()
             self._initialized = True
         return self._client
 
@@ -143,6 +154,10 @@ class LlamaStackModel(Model):
 
         settings = self._merge_settings(model_settings)
 
+        response_format = self._build_response_format(model_request_parameters)
+        if response_format:
+            settings["response_format"] = response_format
+
         response = await client.chat.completions.create(
             model=self._model_id,
             messages=llama_messages,
@@ -153,35 +168,26 @@ class LlamaStackModel(Model):
 
         return self._process_response(response)
 
-    @asynccontextmanager
-    async def request_stream(
-        self,
-        messages: list[ModelMessage],
-        model_settings: ModelSettings | None,
-        model_request_parameters: ModelRequestParameters,
-        run_context: RunContext[Any] | None = None,
-    ) -> AsyncIterator[StreamedResponse]:
-        """Make a streaming request to LlamaStack."""
-        client = await self._ensure_initialized()
+    def _build_response_format(
+        self, model_request_parameters: ModelRequestParameters
+    ) -> dict[str, Any] | None:
+        """Build response_format for structured output modes."""
+        output_mode = model_request_parameters.output_mode
+        output_object = model_request_parameters.output_object
 
-        llama_messages = self._map_messages(messages)
-        tools = self._map_tools(model_request_parameters.function_tools)
+        if output_mode in ("native", "auto") and output_object is not None:
+            return {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": output_object.name,
+                    "schema": output_object.json_schema,
+                    "strict": output_object.strict,
+                },
+            }
+        elif output_mode == "prompted":
+            return {"type": "json_object"}
 
-        settings = self._merge_settings(model_settings)
-
-        stream = await client.chat.completions.create(
-            model=self._model_id,
-            messages=llama_messages,
-            tools=tools if tools else None,
-            stream=True,
-            **settings,
-        )
-
-        yield LlamaStackStreamedResponse(
-            model_request_parameters=model_request_parameters,
-            stream=stream,
-            _model_name=self._model_id,
-        )
+        return None
 
     async def __aenter__(self) -> LlamaStackModel:
         """Enter async context."""
@@ -336,84 +342,3 @@ class LlamaStackModel(Model):
         )
 
         return ModelResponse(parts=parts, model_name=self._model_id, usage=usage)
-
-
-@dataclass(kw_only=True)
-class LlamaStackStreamedResponse(StreamedResponse):
-    """Streamed response handler for LlamaStack."""
-
-    model_request_parameters: ModelRequestParameters
-    stream: Any
-    _model_name: str
-    _timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    _usage: RequestUsage = field(default_factory=lambda: RequestUsage())
-
-    async def _get_event_iterator(self) -> AsyncIterator[Any]:
-        """Iterate over streamed events and yield response parts."""
-        import logging
-        logger = logging.getLogger(__name__)
-        async for event in self.stream:
-            logger.debug(f"Stream event: {event}")
-            if not event.choices:
-                continue
-
-            choice = event.choices[0]
-            delta = choice.delta
-
-            if delta.content:
-                for stream_event in self._parts_manager.handle_text_delta(
-                    vendor_part_id="content",
-                    content=delta.content,
-                    provider_name=self.provider_name,
-                ):
-                    yield stream_event
-
-            if hasattr(delta, "tool_calls") and delta.tool_calls:
-                for dtc in delta.tool_calls:
-                    maybe_event = self._parts_manager.handle_tool_call_delta(
-                        vendor_part_id=dtc.index,
-                        tool_name=dtc.function and dtc.function.name,
-                        args=dtc.function and dtc.function.arguments,
-                        tool_call_id=dtc.id,
-                    )
-                    if maybe_event is not None:
-                        yield maybe_event
-
-            if event.usage:
-                self._usage = RequestUsage(
-                    input_tokens=getattr(event.usage, "prompt_tokens", 0),
-                    output_tokens=getattr(event.usage, "completion_tokens", 0),
-                )
-
-            if choice.finish_reason:
-                self.finish_reason = choice.finish_reason
-
-    def get(self, *, final: bool = False) -> ModelResponse:
-        """Get the current accumulated response."""
-        return ModelResponse(
-            parts=self._parts_manager.get_parts(),
-            model_name=self.model_name,
-        )
-
-    @property
-    def model_name(self) -> str:
-        """Return the model name."""
-        return self._model_name
-
-    @property
-    def provider_name(self) -> str:
-        """Return the provider name."""
-        return "llama-stack"
-
-    @property
-    def provider_url(self) -> str | None:
-        """Return the provider URL (None for local library client)."""
-        return None
-
-    def usage(self) -> RequestUsage:
-        """Return the current usage statistics."""
-        return self._usage
-
-    def timestamp(self) -> datetime:
-        """Return the response timestamp."""
-        return self._timestamp

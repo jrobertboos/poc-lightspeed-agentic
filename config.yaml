@@ -4,45 +4,6 @@ service:
   port: 8080
 
 agents:
-  - name: researcher
-    description: Researches topics and provides detailed information
-    model: openai:gpt-4o-mini
-    instructions: |
-      You are a research specialist. When asked about a topic:
-      1. Provide accurate, well-structured information
-      2. Break down complex topics into understandable parts
-      3. Cite sources or acknowledge limitations when uncertain
-
-  - name: writer
-    description: Drafts, summarizes, and formats written content
-    model: openai:gpt-4o-mini
-    instructions: |
-      You are a writing specialist. Your responsibilities:
-      1. Draft clear, engaging content tailored to the audience
-      2. Summarize lengthy text into concise key points
-      3. Format and structure content for readability
-      4. Adapt tone and style based on the context (formal, casual, technical)
-
-  - name: analyst
-    description: Analyzes content and provides structured insights
-    model: llama-stack:openai/gpt-4o-mini
-    instructions: |
-      You are an analytical specialist. Your responsibilities:
-      1. Break down complex information into key components
-      2. Identify patterns, trends, and important relationships
-      3. Provide data-driven insights and recommendations
-      4. Present findings in a clear, structured format
-
-  - name: editor
-    description: Reviews and refines content for clarity and accuracy
-    model: openai:gpt-4o-mini
-    instructions: |
-      You are an editorial specialist. Your responsibilities:
-      1. Review content for clarity, grammar, and style
-      2. Ensure consistency in tone and formatting
-      3. Fact-check claims and flag potential issues
-      4. Suggest improvements while preserving the author's voice
-
   - name: content_reviewer
     description: Reviews content and decides if it needs revision
     model: openai:gpt-4o-mini
@@ -85,7 +46,7 @@ agents:
 
   - name: publisher
     description: Prepares approved content for publication
-    model: openai:gpt-4o-mini
+    model: llama-stack:openai/gpt-5-nano
     output_type:
       name: PublishedContent
       description: Final published content
@@ -107,52 +68,7 @@ agents:
       2. Formatting the body for publication
       3. Adding relevant metadata
 
-  - name: root
-    description: Routes requests to specialized sub-agents and synthesizes their responses
-    model: llama-stack:openai/gpt-4o-mini
-    subagents: [researcher, writer, analyst, editor]
-    instructions: |
-      You are an orchestration agent. Analyze each request and delegate to the appropriate agent(s).
-
-      You may call one or multiple agents depending on the task. Synthesize their outputs into a final response.
-
 workflows:
-  - name: research_and_write
-    description: Research a topic and produce polished written content
-    start_node: researcher
-
-    nodes:
-      - agent: researcher
-        description: Gather information on the requested topic
-      - agent: writer
-        description: Transform research into polished content
-
-    edges:
-      - from: researcher
-        to: writer
-        label: research_complete
-      - from: writer
-        to: __end__
-        label: content_ready
-
-  - name: analyze_and_edit
-    description: Analyze content and produce polished, edited output
-    start_node: analyst
-
-    nodes:
-      - agent: analyst
-        description: Analyze the input and extract key insights
-      - agent: editor
-        description: Refine the analysis into polished, publication-ready content
-
-    edges:
-      - from: analyst
-        to: editor
-        label: analysis_complete
-      - from: editor
-        to: __end__
-        label: editing_complete
-
   - name: content_pipeline
     description: Review content, improve if needed, then publish when approved
     start_node: content_reviewer

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, AsyncIterator
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
@@ -67,38 +67,3 @@ class WorkflowRunner:
                 success=False,
                 error=str(e),
             )
-
-    async def run_stream(self, user_input: str) -> AsyncIterator[dict]:
-        """Execute the workflow with streaming updates."""
-        logger.info(f"Starting workflow '{self.workflow.name}' (streaming)")
-
-        state = create_initial_state(self.workflow.config, user_input)
-
-        yield {
-            "type": "workflow_start",
-            "workflow": self.workflow.name,
-            "start_node": self.workflow.config.start_node,
-        }
-
-        try:
-            start_node = self.workflow.start_node_class()
-
-            async with self.workflow.graph.iter(start_node, state=state) as run:
-                async for node in run:
-                    yield {
-                        "type": "node_start",
-                        "node": getattr(node, "_node_id", str(type(node).__name__)),
-                    }
-
-            yield {
-                "type": "workflow_complete",
-                "output": _serialize_output(state.output),
-                "history": state.history,
-            }
-
-        except Exception as e:
-            logger.error(f"Workflow streaming failed: {e}")
-            yield {
-                "type": "workflow_error",
-                "error": str(e),
-            }

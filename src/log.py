@@ -8,6 +8,22 @@ from rich.text import Text
 
 from src.constants import DEFAULT_LOG_FORMAT, DEFAULT_LOG_LEVEL
 
+NOISY_LOGGERS = [
+    "llama_stack",
+    "llama_stack.core.stack",
+    "llama_stack.providers.utils.inference.openai_mixin",
+    "httpx",
+]
+
+
+def suppress_noisy_loggers() -> None:
+    """Suppress INFO-level logs from noisy third-party libraries."""
+    for name in NOISY_LOGGERS:
+        logger = logging.getLogger(name)
+        logger.setLevel(logging.WARNING)
+        logger.handlers = []
+        logger.propagate = False
+
 
 class ColonRichHandler(RichHandler):
     """RichHandler that adds a colon after the log level with uvicorn-style spacing."""
