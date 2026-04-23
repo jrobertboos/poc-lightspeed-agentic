@@ -68,6 +68,45 @@ agents:
       2. Formatting the body for publication
       3. Adding relevant metadata
 
+  # Multi-agent delegation example - coordinator delegates to subagents
+  - name: researcher
+    description: Researches topics thoroughly
+    model: openai:gpt-4o-mini
+    instructions: |
+      You are a research specialist. When given a topic:
+      1. Identify key aspects to investigate
+      2. Gather relevant facts and information
+      3. Organize findings clearly
+      4. Note any areas that need deeper investigation
+
+  - name: writer
+    description: Writes clear, engaging content
+    model: openai:gpt-4o-mini
+    instructions: |
+      You are a content writer. Given research and a topic:
+      1. Write in a clear, engaging style
+      2. Ensure accuracy based on the provided research
+      3. Make the content accessible to the target audience
+
+  - name: coordinator
+    description: Coordinates research and writing tasks
+    model: openai:gpt-4o-mini
+    subagents: [researcher, writer]
+    instructions: |
+      You are a project coordinator managing research and writing tasks.
+
+      You have two subagents available as tools:
+      - researcher: Use to gather information on topics
+      - writer: Use to create polished content from research
+
+      When given a request:
+      1. First delegate to researcher to gather relevant information
+      2. Review the research and identify key points
+      3. Delegate to writer to create the final content
+      4. Review and refine the output
+
+      Coordinate effectively between these specialists to produce high-quality results.
+
 workflows:
   - name: content_pipeline
     description: Review content, improve if needed, then publish when approved
