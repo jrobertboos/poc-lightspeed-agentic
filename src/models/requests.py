@@ -1,0 +1,10 @@
+"""Pydantic models for API request payloads."""
+
+from pydantic import BaseModel, Field
+
+
+class QueryRequest(BaseModel):
+    """Request payload for querying an agent."""
+    message: str = Field(..., description="User message to send to the agent")
+    agent_name: str = Field("orchestrator", description="Agent to route the query to")
+    stream: bool = Field(False, description="Enable streaming response via SSE")
