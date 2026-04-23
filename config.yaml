@@ -13,18 +13,177 @@ agents:
       2. Break down complex topics into understandable parts
       3. Cite sources or acknowledge limitations when uncertain
 
+  - name: writer
+    description: Drafts, summarizes, and formats written content
+    model: openai:gpt-4o-mini
+    instructions: |
+      You are a writing specialist. Your responsibilities:
+      1. Draft clear, engaging content tailored to the audience
+      2. Summarize lengthy text into concise key points
+      3. Format and structure content for readability
+      4. Adapt tone and style based on the context (formal, casual, technical)
+
+  - name: analyst
+    description: Analyzes content and provides structured insights
+    model: llama-stack:openai/gpt-4o-mini
+    instructions: |
+      You are an analytical specialist. Your responsibilities:
+      1. Break down complex information into key components
+      2. Identify patterns, trends, and important relationships
+      3. Provide data-driven insights and recommendations
+      4. Present findings in a clear, structured format
+
+  - name: editor
+    description: Reviews and refines content for clarity and accuracy
+    model: openai:gpt-4o-mini
+    instructions: |
+      You are an editorial specialist. Your responsibilities:
+      1. Review content for clarity, grammar, and style
+      2. Ensure consistency in tone and formatting
+      3. Fact-check claims and flag potential issues
+      4. Suggest improvements while preserving the author's voice
+
+  - name: content_reviewer
+    description: Reviews content and decides if it needs revision
+    model: openai:gpt-4o-mini
+    output_type:
+      name: ContentReview
+      description: Structured review decision
+      fields:
+        - name: approved
+          type: bool
+          description: Whether the content is ready for publication
+        - name: quality_score
+          type: int
+          description: Quality score from 1-10
+        - name: issues
+          type: list[str]
+          description: List of issues found (empty if approved)
+        - name: summary
+          type: str
+          description: Brief summary of the review
+    instructions: |
+      You are a content reviewer. Analyze the provided content and determine:
+      1. Is it ready for publication? (approved: true/false)
+      2. What is the quality score? (1-10, where 8+ means approved)
+      3. What issues exist, if any?
+      4. Provide a brief summary of your review.
+
+      Set approved=true only if quality_score >= 8 and there are no critical issues.
+
+  - name: content_improver
+    description: Improves content based on reviewer feedback
+    model: openai:gpt-4o-mini
+    instructions: |
+      You are a content improvement specialist. You receive content that was flagged
+      for revision along with specific issues to address.
+
+      Review the issues from the previous analysis and rewrite the content to:
+      1. Address each identified issue
+      2. Improve overall quality and clarity
+      3. Maintain the original intent and key information
+
+  - name: publisher
+    description: Prepares approved content for publication
+    model: openai:gpt-4o-mini
+    output_type:
+      name: PublishedContent
+      description: Final published content
+      fields:
+        - name: title
+          type: str
+          description: Content title
+        - name: body
+          type: str
+          description: Final content body
+        - name: metadata
+          type: str
+          description: Publication metadata (date, category, etc.)
+    instructions: |
+      You are a publication specialist. The content has been approved for publication.
+
+      Prepare it by:
+      1. Creating an appropriate title
+      2. Formatting the body for publication
+      3. Adding relevant metadata
+
   - name: root
     description: Routes requests to specialized sub-agents and synthesizes their responses
     model: llama-stack:openai/gpt-4o-mini
-    subagents: [researcher]
+    subagents: [researcher, writer, analyst, editor]
     instructions: |
-      You are the orchestration agent responsible for routing user requests to the appropriate specialized agents.
+      You are an orchestration agent. Analyze each request and delegate to the appropriate agent(s).
 
-      Your responsibilities:
-      1. Analyze the user's request to understand their intent
-      2. Determine which sub-agent(s) are best suited to handle the request
-      3. Delegate tasks to the appropriate agent(s)
-      4. Synthesize responses from sub-agents into a coherent final answer
+      You may call one or multiple agents depending on the task. Synthesize their outputs into a final response.
 
-      When no sub-agents are available or the request is simple, handle it directly.
-      Always be clear about what you're doing and which agent is handling the request.
+workflows:
+  - name: research_and_write
+    description: Research a topic and produce polished written content
+    start_node: researcher
+
+    nodes:
+      - agent: researcher
+        description: Gather information on the requested topic
+      - agent: writer
+        description: Transform research into polished content
+
+    edges:
+      - from: researcher
+        to: writer
+        label: research_complete
+      - from: writer
+        to: __end__
+        label: content_ready
+
+  - name: analyze_and_edit
+    description: Analyze content and produce polished, edited output
+    start_node: analyst
+
+    nodes:
+      - agent: analyst
+        description: Analyze the input and extract key insights
+      - agent: editor
+        description: Refine the analysis into polished, publication-ready content
+
+    edges:
+      - from: analyst
+        to: editor
+        label: analysis_complete
+      - from: editor
+        to: __end__
+        label: editing_complete
+
+  - name: content_pipeline
+    description: Review content, improve if needed, then publish when approved
+    start_node: content_reviewer
+
+    nodes:
+      - agent: content_reviewer
+        description: Review content quality and decide next steps
+      - agent: content_improver
+        description: Improve content based on reviewer feedback
+      - agent: publisher
+        description: Prepare approved content for publication
+
+    edges:
+      # If approved (quality_score >= 8), go directly to publisher
+      - from: content_reviewer
+        to: publisher
+        condition: "output.approved and output.quality_score >= 8"
+        label: approved
+
+      # If not approved, send to improver
+      - from: content_reviewer
+        to: content_improver
+        condition: "not output.approved or output.quality_score < 8"
+        label: needs_improvement
+
+      # After improvement, go back to reviewer
+      - from: content_improver
+        to: content_reviewer
+        label: resubmit_for_review
+
+      # Publisher outputs final result
+      - from: publisher
+        to: __end__
+        label: published

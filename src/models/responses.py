@@ -33,16 +33,3 @@ class AgentListResponse(BaseModel):
     """Response containing a list of agents."""
 
     agents: list[AgentResponse] = Field(default_factory=list)
-
-
-class StreamChunkEvent(BaseModel):
-    """SSE event containing a text chunk during streaming."""
-
-    chunk: str = Field(..., description="Text chunk from the streaming response")
-
-
-class StreamDoneEvent(BaseModel):
-    """SSE event indicating stream completion."""
-
-    done: bool = Field(True, description="Indicates stream completion")
-    agent_name: str = Field(..., description="Agent that handled the query")

@@ -350,7 +350,10 @@ class LlamaStackStreamedResponse(StreamedResponse):
 
     async def _get_event_iterator(self) -> AsyncIterator[Any]:
         """Iterate over streamed events and yield response parts."""
+        import logging
+        logger = logging.getLogger(__name__)
         async for event in self.stream:
+            logger.debug(f"Stream event: {event}")
             if not event.choices:
                 continue
 
@@ -364,6 +367,17 @@ class LlamaStackStreamedResponse(StreamedResponse):
                     provider_name=self.provider_name,
                 ):
                     yield stream_event
+
+            if hasattr(delta, "tool_calls") and delta.tool_calls:
+                for dtc in delta.tool_calls:
+                    maybe_event = self._parts_manager.handle_tool_call_delta(
+                        vendor_part_id=dtc.index,
+                        tool_name=dtc.function and dtc.function.name,
+                        args=dtc.function and dtc.function.arguments,
+                        tool_call_id=dtc.id,
+                    )
+                    if maybe_event is not None:
+                        yield maybe_event
 
             if event.usage:
                 self._usage = RequestUsage(

@@ -20,5 +20,3 @@ Pydantic schemas for API request and response bodies.
 | `QueryResponse` | Agent response text and agent name |
 | `AgentResponse` | Agent name and description |
 | `HealthResponse` | Service status and version |
-| `StreamChunkEvent` | SSE chunk for streaming responses |
-| `StreamDoneEvent` | SSE completion signal |
