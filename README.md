@@ -1,12 +1,14 @@
 # Lightspeed Agentic
 
-A no-code AI agent platform built with FastAPI and Pydantic AI. Define agents in YAML, deploy as an API.
+A no-code AI agent platform built with FastAPI and Pydantic AI. Define agents and workflows in YAML, deploy as an API.
 
 ## Features
 
-- **YAML-based agent configuration** - Define agents, models, and instructions without code
+- **YAML-based agent configuration** - Define agents, models, instructions, and structured outputs without code
 - **Multi-agent orchestration** - Agents can delegate to subagents automatically
-- **Streaming responses** - Server-sent events for real-time output
+- **Graph-based workflows** - Define conditional workflows with pydantic-graph that route between agents based on output conditions
+- **Structured outputs** - Define typed output schemas in YAML for validated, structured responses
+- **Multiple model providers** - Support for OpenAI models and LlamaStack (with auto-configuration for multiple API providers)
 - **FastAPI backend** - OpenAPI docs, async support, production-ready
 
 ## Quick Start
@@ -14,6 +16,9 @@ A no-code AI agent platform built with FastAPI and Pydantic AI. Define agents in
 ```bash
 # Install dependencies
 uv sync
+
+# Set your API key
+export OPENAI_API_KEY=your-key-here
 
 # Run the server
 uv run uvicorn src.main:app --reload
@@ -24,7 +29,7 @@ open http://localhost:8000/docs
 
 ## Configuration
 
-Agents are defined in `config.yaml`:
+Agents and workflows are defined in `config.yaml`:
 
 ```yaml
 name: Lightspeed Agentic
@@ -33,50 +38,111 @@ service:
   port: 8080
 
 agents:
-  - name: researcher
-    description: Researches topics and provides detailed information
+  - name: content_reviewer
+    description: Reviews content and decides if it needs revision
     model: openai:gpt-4o-mini
+    output_type:
+      name: ContentReview
+      fields:
+        - name: approved
+          type: bool
+          description: Whether the content is ready
+        - name: quality_score
+          type: int
+          description: Quality score from 1-10
     instructions: |
-      You are a research specialist...
+      You are a content reviewer...
 
-  - name: root
-    description: Routes requests to specialized sub-agents
+  - name: content_improver
+    description: Improves content based on feedback
     model: openai:gpt-4o-mini
-    subagents: [researcher]
     instructions: |
-      You are the orchestration agent...
+      You are a content improvement specialist...
+
+workflows:
+  - name: content_pipeline
+    description: Review, improve, and publish content
+    start_node: content_reviewer
+
+    nodes:
+      - agent: content_reviewer
+      - agent: content_improver
+      - agent: publisher
+
+    edges:
+      - from: content_reviewer
+        to: publisher
+        condition: "output.approved and output.quality_score >= 8"
+      - from: content_reviewer
+        to: content_improver
+        condition: "not output.approved"
+      - from: content_improver
+        to: content_reviewer
+      - from: publisher
+        to: __end__
 ```
 
 ## API Usage
 
-### Query an agent
+### Query an agent directly
 
 ```bash
 curl -X POST http://localhost:8080/query \
   -H "Content-Type: application/json" \
-  -d '{"agent_name": "root", "message": "What is quantum computing?"}'
+  -d '{"agent_name": "content_reviewer", "message": "Review this article..."}'
 ```
 
-### Stream response
+### Run a workflow
 
 ```bash
-curl -X POST http://localhost:8080/query \
+curl -X POST http://localhost:8080/workflow/run \
   -H "Content-Type: application/json" \
-  -d '{"agent_name": "root", "message": "Explain AI", "stream": true}'
+  -d '{"workflow_name": "content_pipeline", "message": "Please review and publish this content..."}'
+```
+
+### List available workflows
+
+```bash
+curl http://localhost:8080/workflow
+```
+
+### List available agents
+
+```bash
+curl http://localhost:8080/agents
 ```
 
 ## Project Structure
 
 ```
 src/
-├── agents/          # Agent factory and registry
+├── agents/          # Agent factory, registry, and output type builder
 ├── app/             # FastAPI app and endpoints
+│   └── endpoints/   # API route handlers (query, workflow, agents, health)
 ├── config/          # YAML config loader and models
 ├── models/          # Request/response schemas
+├── providers/       # Model providers (LlamaStack integration)
+├── workflows/       # Graph-based workflow builder and runner
 └── main.py          # Application entry point
 ```
+
+## Model Providers
+
+### OpenAI (default)
+Use standard Pydantic AI model strings:
+```yaml
+model: openai:gpt-4o-mini
+```
+
+### LlamaStack
+Use the `llama-stack:` prefix for LlamaStack models:
+```yaml
+model: llama-stack:openai/gpt-5-nano
+```
+
+LlamaStack runs as an in-process library and automatically picks up API keys from environment variables (OPENAI_API_KEY, ANTHROPIC_API_KEY, TOGETHER_API_KEY, etc.).
 
 ## Requirements
 
 - Python 3.12+
-- OpenAI API key (set `OPENAI_API_KEY` environment variable)
+- API key for your chosen model provider (e.g., `OPENAI_API_KEY` environment variable)

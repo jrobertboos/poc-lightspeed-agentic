@@ -1,18 +1,66 @@
 # Source Code
 
-Core application code for Lightspeed Agentic.
+Core application code for Lightspeed Agentic, a no-code platform for building AI agents and workflows from YAML configuration.
 
 ## Structure
 
 | Directory | Purpose |
 |-----------|---------|
-| `agents/` | Agent creation and registry |
-| `app/` | FastAPI application and routing |
-| `config/` | YAML configuration loading |
-| `models/` | Pydantic request/response schemas |
-| `runners/` | Server execution utilities |
+| `agents/` | Agent creation, registry, and structured output types |
+| `app/` | FastAPI application, routing, and API endpoints |
+| `capabilities/` | Reserved for agent capability extensions (currently empty) |
+| `config/` | YAML configuration loading and Pydantic config models |
+| `models/` | Pydantic request/response schemas for API payloads |
+| `providers/` | Custom LLM model providers (LlamaStack integration) |
+| `runners/` | Server execution utilities (uvicorn) |
+| `utils/` | Shared utility functions (currently empty) |
+| `workflows/` | Graph-based workflow orchestration using pydantic-graph |
 
-## Entry Points
+## Key Files
 
-- `main.py` - FastAPI application instance with lifespan management
-- `runners/uvicorn.py` - Development server runner
+- `main.py` - FastAPI application instance with lifespan management; initializes agent registry, workflow registry, and configuration on startup
+- `log.py` - Logging utilities with Rich console formatting and TTY detection
+- `constants.py` - Application constants (log format, log level)
+
+## Module Details
+
+### agents/
+
+- `factory.py` - Creates Pydantic AI agents from configuration; supports standard models and LlamaStack models (prefixed with `llama-stack:`); handles subagent delegation as tools
+- `registry.py` - Global agent registry for storing and retrieving agents by name; handles initialization order for agents with subagent dependencies
+- `output_types.py` - Dynamic Pydantic model generation from YAML config for structured agent outputs
+
+### app/
+
+- `routers.py` - Registers all API routers with the FastAPI application
+- `endpoints/` - API endpoint modules:
+  - `health.py` - Health and readiness check endpoints (`/health`, `/ready`)
+  - `query.py` - Agent query endpoint (`POST /query`)
+  - `agents.py` - Agent listing and retrieval (`GET /agents`, `GET /agents/{name}`)
+  - `workflow.py` - Workflow listing and execution (`GET /workflow`, `POST /workflow/run`)
+
+### config/
+
+- `loader.py` - Loads and validates YAML configuration files into Pydantic models
+- `models.py` - Pydantic configuration models: `AppConfig`, `AgentConfig`, `WorkflowConfig`, `OutputTypeConfig`, etc.
+
+### models/
+
+- `requests.py` - API request payload schemas (`QueryRequest`)
+- `responses.py` - API response schemas (`HealthResponse`, `QueryResponse`, `AgentResponse`, `AgentListResponse`, `ErrorResponse`)
+
+### providers/
+
+- `llama_stack.py` - Custom Pydantic AI model provider for LlamaStack; runs LlamaStack as an in-process library via `AsyncLlamaStackAsLibraryClient`; handles message mapping, tool definitions, and structured output
+
+### workflows/
+
+- `registry.py` - Global workflow registry for storing workflow definitions and runners
+- `builder.py` - Builds pydantic-graph workflows from YAML configuration; creates node classes and wires conditional edges
+- `runner.py` - Executes workflow graphs with state management; returns `WorkflowResult` with output and history
+- `nodes.py` - `AgentNode` class that wraps agents as pydantic-graph nodes; handles prompt building with workflow context and conditional edge routing
+- `state.py` - `WorkflowState` dataclass for tracking workflow execution (input, output, history, current node)
+
+### runners/
+
+- `uvicorn.py` - Development/production server runner using uvicorn

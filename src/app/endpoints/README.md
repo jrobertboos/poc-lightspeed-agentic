@@ -7,8 +7,9 @@ FastAPI route handlers organized by domain.
 | Module | Routes | Purpose |
 |--------|--------|---------|
 | `health.py` | `GET /health`, `GET /ready` | Liveness and readiness probes |
-| `query.py` | `POST /query` | Send messages to agents (supports streaming) |
-| `agents.py` | `GET /agents`, `GET /agents/{name}` | List and inspect registered agents |
+| `query.py` | `POST /query` | Send messages to agents |
+| `agents.py` | `GET /agents`, `GET /agents/{agent_name}` | List and inspect registered agents |
+| `workflow.py` | `GET /workflow`, `POST /workflow/run` | List and execute workflows |
 
 ## Adding a New Endpoint
 

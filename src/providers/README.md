@@ -47,27 +47,23 @@ result = agent.run_sync("What's the weather in San Francisco?")
 print(result.output)
 ```
 
-### Streaming
+### Exports
+
+- `LlamaStackModel` - The main model provider class
+- `LlamaStackModelSettings` - TypedDict for model settings
+
+### Structured Output
+
+The model supports JSON schema structured output for agents with defined output types:
 
 ```python
-import asyncio
-from pydantic_ai import Agent
-from src.providers import LlamaStackModel
+from pydantic import BaseModel
 
-model = LlamaStackModel(
-    model_id="meta-llama/Llama-3.1-8B-Instruct",
-    distro="starter",
-)
+class ResponseFormat(BaseModel):
+    answer: str
+    confidence: float
 
-agent = Agent(model)
-
-async def main():
-    async with agent.run_stream("Tell me a story") as stream:
-        async for text in stream.stream_text():
-            print(text, end="", flush=True)
-    print()
-
-asyncio.run(main())
+agent = Agent(model, output_type=ResponseFormat)
 ```
 
 ### Configuration

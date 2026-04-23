@@ -7,6 +7,19 @@ YAML-based application configuration.
 - `loader.py` - Loads and validates `config.yaml` into Pydantic models
 - `models.py` - Pydantic schemas for configuration structure
 
+## Configuration Classes
+
+| Class | Purpose |
+|-------|---------|
+| `AppConfig` | Root configuration container |
+| `ServiceConfig` | Server host and port settings |
+| `AgentConfig` | Agent definition with model, instructions, subagents |
+| `OutputTypeConfig` | Structured output type definition |
+| `OutputFieldConfig` | Field definition within output types |
+| `WorkflowConfig` | Workflow graph configuration |
+| `WorkflowNodeConfig` | Workflow node configuration |
+| `WorkflowEdgeConfig` | Workflow edge configuration with optional conditions |
+
 ## Configuration Schema
 
 ```yaml
@@ -22,6 +35,22 @@ agents:
     instructions: |            # System prompt
       ...
     subagents: [other-agent]   # Optional: agents this one can delegate to
+    output_type:               # Optional: structured output
+      name: ResponseType
+      fields:
+        - name: answer
+          type: str
+          description: The response
+
+workflows:
+  - name: my-workflow
+    nodes:
+      - name: step1
+        agent: agent-name
+    edges:
+      - from_node: step1
+        to_node: __end__
+        condition: "result.success == true"  # Optional
 ```
 
 ## Usage
