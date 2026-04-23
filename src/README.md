@@ -35,9 +35,9 @@ Core application code for Lightspeed Agentic, a no-code platform for building AI
 - `routers.py` - Registers all API routers with the FastAPI application
 - `endpoints/` - API endpoint modules:
   - `health.py` - Health and readiness check endpoints (`/health`, `/ready`)
-  - `query.py` - Agent query endpoint (`POST /query`)
-  - `agents.py` - Agent listing and retrieval (`GET /agents`, `GET /agents/{name}`)
-  - `workflow.py` - Workflow listing and execution (`GET /workflow`, `POST /workflow/run`)
+  - `query.py` - Not implemented
+  - `agents.py` - Agent listing, retrieval, and execution (`GET /agents`, `GET /agents/{name}`, `POST /agents/run`)
+  - `workflows.py` - Workflow listing and execution (`GET /workflows`, `GET /workflows/{name}`, `POST /workflows/run`)
 
 ### config/
 
@@ -46,8 +46,8 @@ Core application code for Lightspeed Agentic, a no-code platform for building AI
 
 ### models/
 
-- `requests.py` - API request payload schemas (`QueryRequest`)
-- `responses.py` - API response schemas (`HealthResponse`, `QueryResponse`, `AgentResponse`, `AgentListResponse`, `ErrorResponse`)
+- `requests.py` - API request payload schemas (`AgentRunRequest`, `WorkflowRunRequest`)
+- `responses.py` - API response schemas (`HealthResponse`, `AgentResponse`, `AgentListResponse`, `AgentRunResponse`, `WorkflowResponse`, `WorkflowListResponse`, `WorkflowRunResponse`, `ErrorResponse`)
 
 ### providers/
 

@@ -35,7 +35,7 @@ Agents and workflows are defined in `config.yaml`:
 name: Lightspeed Agentic
 service:
   host: 0.0.0.0
-  port: 8080
+  port: 8000
 
 agents:
   - name: content_reviewer
@@ -84,10 +84,10 @@ workflows:
 
 ## API Usage
 
-### Query an agent directly
+### Run an agent
 
 ```bash
-curl -X POST http://localhost:8080/query \
+curl -X POST http://localhost:8000/agents/run \
   -H "Content-Type: application/json" \
   -d '{"agent_name": "content_reviewer", "message": "Review this article..."}'
 ```
@@ -95,7 +95,7 @@ curl -X POST http://localhost:8080/query \
 ### Run a workflow
 
 ```bash
-curl -X POST http://localhost:8080/workflow/run \
+curl -X POST http://localhost:8000/workflows/run \
   -H "Content-Type: application/json" \
   -d '{"workflow_name": "content_pipeline", "message": "Please review and publish this content..."}'
 ```
@@ -103,13 +103,13 @@ curl -X POST http://localhost:8080/workflow/run \
 ### List available workflows
 
 ```bash
-curl http://localhost:8080/workflow
+curl http://localhost:8000/workflows
 ```
 
 ### List available agents
 
 ```bash
-curl http://localhost:8080/agents
+curl http://localhost:8000/agents
 ```
 
 ## Project Structure
@@ -118,7 +118,7 @@ curl http://localhost:8080/agents
 src/
 ├── agents/          # Agent factory, registry, and output type builder
 ├── app/             # FastAPI app and endpoints
-│   └── endpoints/   # API route handlers (query, workflow, agents, health)
+│   └── endpoints/   # API route handlers (query, workflows, agents, health)
 ├── config/          # YAML config loader and models
 ├── models/          # Request/response schemas
 ├── providers/       # Model providers (LlamaStack integration)
@@ -137,7 +137,7 @@ model: openai:gpt-4o-mini
 ### LlamaStack
 Use the `llama-stack:` prefix for LlamaStack models:
 ```yaml
-model: llama-stack:openai/gpt-5-nano
+model: llama-stack:openai/gpt-4o-mini
 ```
 
 LlamaStack runs as an in-process library and automatically picks up API keys from environment variables (OPENAI_API_KEY, ANTHROPIC_API_KEY, TOGETHER_API_KEY, etc.).

@@ -1,39 +1,22 @@
 """Workflow endpoint for executing graph-based agent workflows."""
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
 
 from src.log import get_logger
+from src.models import (
+    WorkflowListResponse,
+    WorkflowResponse,
+    WorkflowRunRequest,
+    WorkflowRunResponse,
+)
 from src.workflows.registry import get_workflow_registry
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/workflow", tags=["workflow"])
+router = APIRouter(tags=["workflows"])
 
 
-class WorkflowRequest(BaseModel):
-    """Request payload for executing a workflow."""
-
-    message: str = Field(..., description="User input to start the workflow")
-    workflow_name: str | None = Field(None, description="Workflow name (uses default if not specified)")
-
-
-class WorkflowResponse(BaseModel):
-    """Response from a workflow execution."""
-
-    output: str = Field(..., description="Final workflow output")
-    workflow_name: str = Field(..., description="Name of the executed workflow")
-    history: list[dict] = Field(default_factory=list, description="Execution history")
-    success: bool = Field(True, description="Whether workflow completed successfully")
-
-
-class WorkflowListResponse(BaseModel):
-    """Response containing available workflows."""
-
-    workflows: list[dict] = Field(default_factory=list)
-
-
-@router.get("", response_model=WorkflowListResponse)
+@router.get("/workflows", response_model=WorkflowListResponse)
 async def list_workflows() -> WorkflowListResponse:
     """List all available workflows."""
     registry = get_workflow_registry()
@@ -44,18 +27,39 @@ async def list_workflows() -> WorkflowListResponse:
     for name in registry.list_workflows():
         workflow = registry.get(name)
         if workflow:
-            workflows.append({
-                "name": workflow.name,
-                "description": workflow.description,
-                "start_node": workflow.config.start_node,
-                "nodes": [n.agent for n in workflow.config.nodes],
-            })
+            workflows.append(
+                WorkflowResponse(
+                    name=workflow.name,
+                    description=workflow.description,
+                    start_node=workflow.config.start_node,
+                    nodes=[n.agent for n in workflow.config.nodes],
+                )
+            )
 
     return WorkflowListResponse(workflows=workflows)
 
 
-@router.post("/run", response_model=WorkflowResponse)
-async def run_workflow(request: WorkflowRequest) -> WorkflowResponse:
+@router.get("/workflows/{workflow_name}", response_model=WorkflowResponse)
+async def get_workflow(workflow_name: str) -> WorkflowResponse:
+    """Get details for a specific workflow by name."""
+    registry = get_workflow_registry()
+    if registry is None:
+        raise HTTPException(status_code=404, detail="No workflows configured")
+
+    workflow = registry.get(workflow_name)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    return WorkflowResponse(
+        name=workflow.name,
+        description=workflow.description,
+        start_node=workflow.config.start_node,
+        nodes=[n.agent for n in workflow.config.nodes],
+    )
+
+
+@router.post("/workflows/run", response_model=WorkflowRunResponse)
+async def run_workflow(request: WorkflowRunRequest) -> WorkflowRunResponse:
     """Execute a workflow with the given input."""
     registry = get_workflow_registry()
     if registry is None:
@@ -88,7 +92,7 @@ async def run_workflow(request: WorkflowRequest) -> WorkflowResponse:
             detail=f"Workflow execution failed: {result.error}",
         )
 
-    return WorkflowResponse(
+    return WorkflowRunResponse(
         output=result.output,
         workflow_name=workflow_name,
         history=result.state.history,

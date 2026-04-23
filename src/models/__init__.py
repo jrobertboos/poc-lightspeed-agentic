@@ -1,17 +1,28 @@
-from .requests import QueryRequest
+from .requests import AgentRunRequest, WorkflowRunRequest
 from .responses import (
     AgentListResponse,
     AgentResponse,
+    AgentRunResponse,
     ErrorResponse,
     HealthResponse,
-    QueryResponse,
+    ToolCall,
+    ToolResult,
+    WorkflowListResponse,
+    WorkflowResponse,
+    WorkflowRunResponse,
 )
 
 __all__ = [
-    "QueryRequest",
-    "HealthResponse",
-    "QueryResponse",
-    "ErrorResponse",
-    "AgentResponse",
+    "AgentRunRequest",
+    "WorkflowRunRequest",
     "AgentListResponse",
+    "AgentResponse",
+    "AgentRunResponse",
+    "ErrorResponse",
+    "HealthResponse",
+    "ToolCall",
+    "ToolResult",
+    "WorkflowListResponse",
+    "WorkflowResponse",
+    "WorkflowRunResponse",
 ]

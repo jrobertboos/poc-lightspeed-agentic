@@ -16,7 +16,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(health.router)
     app.include_router(query.router)
     app.include_router(agents.router)
-    app.include_router(workflow.router)
+    app.include_router(workflows.router)
 ```
 
 ## Endpoints
@@ -24,6 +24,6 @@ def register_routers(app: FastAPI) -> None:
 | Module | Routes | Purpose |
 |--------|--------|---------|
 | `health.py` | `GET /health`, `GET /ready` | Liveness and readiness probes |
-| `query.py` | `POST /query` | Send messages to agents |
+| `query.py` | `POST /query` | Not implemented |
 | `agents.py` | `GET /agents`, `GET /agents/{agent_name}` | List and inspect registered agents |
-| `workflow.py` | `GET /workflow`, `POST /workflow/run` | List and execute workflows |
+| `workflows.py` | `GET /workflows`, `POST /workflows/run` | List and execute workflows |

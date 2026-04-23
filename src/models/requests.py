@@ -3,7 +3,15 @@
 from pydantic import BaseModel, Field
 
 
-class QueryRequest(BaseModel):
-    """Request payload for querying an agent."""
+class AgentRunRequest(BaseModel):
+    """Request payload for running an agent."""
+
     message: str = Field(..., description="User message to send to the agent")
-    agent_name: str = Field("root", description="Agent to route the query to")
+    agent_name: str | None = Field(None, description="Agent name (uses first available if not specified)")
+
+
+class WorkflowRunRequest(BaseModel):
+    """Request payload for executing a workflow."""
+
+    message: str = Field(..., description="User input to start the workflow")
+    workflow_name: str | None = Field(None, description="Workflow name (uses default if not specified)")

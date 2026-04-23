@@ -11,14 +11,20 @@ Pydantic schemas for API request and response bodies.
 
 | Model | Endpoint | Purpose |
 |-------|----------|---------|
-| `QueryRequest` | `POST /query` | User message and target agent name |
+| `AgentRunRequest` | `POST /agents/run` | Message and optional agent name |
+| `WorkflowRunRequest` | `POST /workflows/run` | Message and optional workflow name |
 
 ## Response Models
 
 | Model | Endpoint | Purpose |
 |-------|----------|---------|
-| `QueryResponse` | `POST /query` | Agent response text and agent name |
 | `AgentListResponse` | `GET /agents` | List of all available agents |
 | `AgentResponse` | `GET /agents/{agent_name}` | Single agent name and description |
+| `AgentRunResponse` | `POST /agents/run` | Agent output, tool calls, tool results, and success status |
+| `ToolCall` | `POST /agents/run` | Tool invocation with name, ID, and arguments |
+| `ToolResult` | `POST /agents/run` | Tool execution result with content and outcome |
+| `WorkflowListResponse` | `GET /workflows` | List of all available workflows |
+| `WorkflowResponse` | `GET /workflows/{workflow_name}` | Workflow details (name, description, nodes) |
+| `WorkflowRunResponse` | `POST /workflows/run` | Workflow output, history, and success status |
 | `HealthResponse` | `GET /health`, `GET /ready` | Service status and version |
 | `ErrorResponse` | Error conditions | Error detail message |

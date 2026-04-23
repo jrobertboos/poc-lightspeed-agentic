@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 
-from src.app.endpoints import agents, health, query, workflow
+from src.app.endpoints import agents, health, query, workflows
 
 
 def register_routers(app: FastAPI) -> None:
@@ -10,4 +10,4 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(health.router)
     app.include_router(query.router)
     app.include_router(agents.router)
-    app.include_router(workflow.router)
+    app.include_router(workflows.router)
