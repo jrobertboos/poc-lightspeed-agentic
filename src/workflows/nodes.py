@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import operator
-import re
 from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Any, ClassVar
@@ -18,20 +16,6 @@ from src.workflows.state import WorkflowState
 
 logger = get_logger(__name__)
 
-CONDITION_PATTERN = re.compile(
-    r"^(len\(history\)|output|state\.output)\s*(==|!=|>|<|>=|<=)\s*(.+)$"
-)
-
-OPERATORS = {
-    "==": operator.eq,
-    "!=": operator.ne,
-    ">": operator.gt,
-    "<": operator.lt,
-    ">=": operator.ge,
-    "<=": operator.le,
-}
-
-
 def serialize_output(output: Any) -> str:
     """Serialize agent output to string for downstream nodes."""
     if isinstance(output, str):
@@ -44,43 +28,11 @@ def serialize_output(output: Any) -> str:
 def evaluate_condition(condition: str, context: dict[str, Any]) -> bool:
     """Evaluate a condition expression against context.
 
-    Supports: len(history) <op> N, output <op> value, state.output <op> value
+    Available in expressions: output, state, history, input, len, any, all
     """
-    match = CONDITION_PATTERN.match(condition.strip())
-    if not match:
-        logger.warning(f"Invalid condition format: '{condition}'")
-        return False
-
-    left_expr, op_str, right_expr = match.groups()
-    op_func = OPERATORS.get(op_str)
-    if not op_func:
-        logger.warning(f"Unknown operator: '{op_str}'")
-        return False
-
+    safe_builtins = {"len": len, "any": any, "all": all, "True": True, "False": False}
     try:
-        if left_expr == "len(history)":
-            left_value = len(context.get("history", []))
-        elif left_expr == "output":
-            left_value = context.get("output")
-        elif left_expr == "state.output":
-            state = context.get("state")
-            left_value = state.output if state else None
-        else:
-            return False
-
-        right_value: Any = right_expr.strip()
-        if right_value.isdigit():
-            right_value = int(right_value)
-        elif right_value.startswith(("'", '"')) and right_value.endswith(("'", '"')):
-            right_value = right_value[1:-1]
-        elif right_value.lower() == "true":
-            right_value = True
-        elif right_value.lower() == "false":
-            right_value = False
-        elif right_value.lower() == "none":
-            right_value = None
-
-        return op_func(left_value, right_value)
+        return bool(eval(condition, {"__builtins__": safe_builtins}, context))
     except Exception as e:
         logger.warning(f"Condition '{condition}' failed: {e}")
         return False
