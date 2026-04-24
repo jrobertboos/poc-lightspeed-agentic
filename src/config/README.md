@@ -44,13 +44,16 @@ agents:
 
 workflows:
   - name: my-workflow
+    start_node: step1_node
     nodes:
-      - name: step1
+      - name: step1_node
+        type: agent
         agent: agent-name
+        description: First step in workflow
     edges:
-      - from_node: step1
-        to_node: __end__
-        condition: "result.success == true"  # Optional
+      - from: step1_node
+        to: __end__
+        condition: "output.answer"  # Optional
 ```
 
 ## Usage

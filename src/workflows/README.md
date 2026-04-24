@@ -4,34 +4,34 @@ Graph-based workflow orchestration using pydantic-graph. Workflows define direct
 
 ## Modules
 
-- `builder.py` - Builds pydantic-graph workflows from YAML configuration
-- `runner.py` - Executes workflow graphs and returns results
-- `nodes.py` - `AgentNode` class that wraps agents as pydantic-graph nodes
+- `factory.py` - Creates workflows from YAML configuration
+- `workflow.py` - `Workflow` class that executes graphs and returns results
+- `nodes.py` - `WorkflowNode` base class and `AgentNode` subclass for pydantic-graph nodes
 - `state.py` - `WorkflowState` dataclass for tracking execution
-- `registry.py` - Global registry for workflow definitions and runners
+- `registry.py` - Global registry for workflows
 
 ## How It Works
 
-1. `initialize_workflow_registry(config, agent_registry)` is called at app startup
-2. Each workflow config is passed to `build_workflow()` which:
+1. `initialize_registry(config, agent_registry)` is called at app startup
+2. Each workflow config is passed to `create_workflow()` which:
    - Creates `AgentNode` subclasses for each node referencing agents from the registry
    - Wires conditional edges between nodes based on YAML config
-   - Returns a `WorkflowDefinition` with the compiled graph
-3. `WorkflowRunner.run(input)` executes the graph:
+   - Returns a `Workflow` with the compiled graph
+3. `Workflow.run(input)` executes the graph:
    - Creates initial `WorkflowState` with user input
    - Starts at the `start_node` and executes agents
    - Evaluates edge conditions to determine routing
-   - Returns `WorkflowResult` with final output and execution history
+   - Returns `WorkflowRunResult` with final output and state
 
 ## Key Classes
 
-### WorkflowDefinition
+### Workflow
 
-A built workflow ready for execution. Contains the compiled graph, start node class, and configuration.
+A workflow that orchestrates agents through a graph. Contains the compiled graph, start node class, and configuration. Call `run(input)` to execute and get a `WorkflowRunResult`.
 
-### WorkflowRunner
+### WorkflowRunResult
 
-Executes a workflow with a given input string. Returns a `WorkflowResult` with output, state, and success status.
+Result of a workflow execution containing `output` (string) and `state` (WorkflowState).
 
 ### WorkflowState
 
@@ -57,13 +57,13 @@ Edges can have conditions that reference the current output and state:
 
 ```yaml
 edges:
-  - from: reviewer
-    to: publisher
+  - from: reviewer_node
+    to: publisher_node
     condition: "output.approved and output.score >= 8"
-  - from: reviewer
-    to: improver
+  - from: reviewer_node
+    to: improver_node
     condition: "not output.approved"
-  - from: reviewer
+  - from: reviewer_node
     to: __end__  # Default fallback (no condition)
 ```
 
@@ -72,11 +72,11 @@ Available in condition expressions: `output`, `state`, `history`, `input`, `len`
 ## Usage
 
 ```python
-from src.workflows import get_workflow_registry
+from src.workflows import get_registry
 
-registry = get_workflow_registry()
-runner = registry.get_runner("my-workflow")
-result = await runner.run("Process this input")
+registry = get_registry()
+workflow = registry.get("my-workflow")
+result = await workflow.run("Process this input")
 
 print(result.output)
 print(result.state.history)

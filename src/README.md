@@ -55,10 +55,10 @@ Core application code for Lightspeed Agentic, a no-code platform for building AI
 
 ### workflows/
 
-- `registry.py` - Global workflow registry for storing workflow definitions and runners
-- `builder.py` - Builds pydantic-graph workflows from YAML configuration; creates node classes and wires conditional edges
-- `runner.py` - Executes workflow graphs with state management; returns `WorkflowResult` with output and history
-- `nodes.py` - `AgentNode` class that wraps agents as pydantic-graph nodes; handles prompt building with workflow context and conditional edge routing
+- `registry.py` - Global workflow registry for storing and retrieving workflows by name
+- `factory.py` - Creates workflows from YAML configuration; creates node classes and wires conditional edges
+- `workflow.py` - `Workflow` class that orchestrates agents through a graph; returns `WorkflowRunResult` with output and state
+- `nodes.py` - `WorkflowNode` base class and `AgentNode` subclass that wrap agents as pydantic-graph nodes; handles prompt building with workflow context and conditional edge routing
 - `state.py` - `WorkflowState` dataclass for tracking workflow execution (input, output, history, current node)
 
 ### runners/

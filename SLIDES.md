@@ -48,7 +48,7 @@ A **no-code AI agent platform** built with:
 │       │                                                              ▼      │
 │       │                                                     ┌─────────────┐ │
 │       │                                                     │   Model     │ │
-│       └──── /workflows/run ──▶ WorkflowRunner               │  Providers  │ │
+│       └──── /workflows/run ──▶ Workflow                     │  Providers  │ │
 │                                      │                      │             │ │
 │             ┌────────────────────────┘                      │ Any Pydantic│ │
 │             │                                               │ AI provider:│ │
@@ -171,21 +171,26 @@ Workflows are **directed graphs** where:
 ```yaml
 workflows:
   - name: content_pipeline
-    start_node: content_reviewer
+    start_node: content_reviewer_node
     nodes:
-      - agent: content_reviewer
-      - agent: content_improver
-      - agent: publisher
+      - name: content_reviewer_node
+        type: agent
+        agent: content_reviewer
+      - name: content_improver_node
+        type: agent
+        agent: content_improver
+      - name: publisher_node
+        type: agent
+        agent: publisher
     edges:
-      - from: content_reviewer
-        to: publisher
-        condition: "output.approved and output.quality_score >= 8"
-      - from: content_reviewer
-        to: content_improver
-        condition: "not output.approved"
-      - from: content_improver
-        to: content_reviewer
-      - from: publisher
+      - from: content_reviewer_node
+        to: publisher_node
+        condition: "output.approved"
+      - from: content_reviewer_node
+        to: content_improver_node  # Default if not approved
+      - from: content_improver_node
+        to: content_reviewer_node
+      - from: publisher_node
         to: __end__
 ```
 
@@ -197,13 +202,13 @@ Edges support Python expressions for routing:
 
 ```yaml
 edges:
-  - from: reviewer
-    to: publisher
+  - from: reviewer_node
+    to: publisher_node
     condition: "output.approved and output.score >= 8"
-  - from: reviewer
-    to: improver
+  - from: reviewer_node
+    to: improver_node
     condition: "not output.approved"
-  - from: reviewer
+  - from: reviewer_node
     to: __end__  # Default fallback (no condition)
 ```
 
