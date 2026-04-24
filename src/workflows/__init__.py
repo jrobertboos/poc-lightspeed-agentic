@@ -1,21 +1,16 @@
 """Workflow module for pydantic-graph based agent orchestration."""
 
-from .builder import WorkflowDefinition, build_workflow
-from .registry import (
-    WorkflowRegistry,
-    get_workflow_registry,
-    initialize_workflow_registry,
-)
-from .runner import WorkflowResult, WorkflowRunner
-from .state import WorkflowState
+from src.workflows.factory import create_workflow
+from src.workflows.registry import WorkflowRegistry, get_registry, initialize_registry
+from src.workflows.state import WorkflowState
+from src.workflows.workflow import Workflow, WorkflowRunResult
 
 __all__ = [
-    "build_workflow",
-    "get_workflow_registry",
-    "initialize_workflow_registry",
-    "WorkflowDefinition",
+    "create_workflow",
+    "get_registry",
+    "initialize_registry",
+    "Workflow",
     "WorkflowRegistry",
-    "WorkflowResult",
-    "WorkflowRunner",
+    "WorkflowRunResult",
     "WorkflowState",
 ]

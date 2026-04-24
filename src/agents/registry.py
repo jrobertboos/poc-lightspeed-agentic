@@ -6,6 +6,9 @@ from pydantic_ai import Agent
 
 from src.agents.factory import create_agent
 from src.config.models import AgentConfig, AppConfig
+from src.log import get_logger
+
+logger = get_logger(__name__)
 
 _registry: "AgentRegistry | None" = None
 
@@ -23,6 +26,7 @@ class AgentRegistry:
         """Create and register an agent from configuration."""
         agent = create_agent(agent_config, subagents=subagents)
         self._agents[agent_config.name] = agent
+        logger.debug(f"Created agent '{agent_config.name}' with model '{agent_config.model}'")
         return agent
 
     def get(self, name: str) -> Agent[None, Any] | None:
@@ -58,7 +62,12 @@ def initialize_registry(config: AppConfig) -> AgentRegistry:
                     f"Agent '{agent_config.name}' references unknown subagent '{subagent_name}'"
                 )
             subagents.append(subagent)
+        subagent_names = ", ".join(agent_config.subagents)
+        logger.debug(f"Wired subagents for '{agent_config.name}': {subagent_names}")
         registry.register(agent_config, subagents=subagents)
+
+    agent_names = ", ".join(registry.list_agents())
+    logger.info(f"Registered {len(registry.list_agents())} agents: {agent_names}")
 
     _registry = registry
     return registry

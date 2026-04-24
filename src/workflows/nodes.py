@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import operator
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -16,8 +18,21 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+CONDITION_PATTERN = re.compile(
+    r"^(len\(history\)|output|state\.output)\s*(==|!=|>|<|>=|<=)\s*(.+)$"
+)
 
-def _serialize_output(output: Any) -> str:
+OPERATORS = {
+    "==": operator.eq,
+    "!=": operator.ne,
+    ">": operator.gt,
+    "<": operator.lt,
+    ">=": operator.ge,
+    "<=": operator.le,
+}
+
+
+def serialize_output(output: Any) -> str:
     """Serialize agent output to string for downstream nodes."""
     if isinstance(output, str):
         return output
@@ -26,14 +41,46 @@ def _serialize_output(output: Any) -> str:
     return str(output)
 
 
-def evaluate_condition(condition: str, context: dict) -> bool:
-    """Safely evaluate a condition expression against context.
+def evaluate_condition(condition: str, context: dict[str, Any]) -> bool:
+    """Evaluate a condition expression against context.
 
-    Available in expressions: output, state, history, input, len, any, all
+    Supports: len(history) <op> N, output <op> value, state.output <op> value
     """
-    safe_builtins = {"len": len, "any": any, "all": all, "True": True, "False": False}
+    match = CONDITION_PATTERN.match(condition.strip())
+    if not match:
+        logger.warning(f"Invalid condition format: '{condition}'")
+        return False
+
+    left_expr, op_str, right_expr = match.groups()
+    op_func = OPERATORS.get(op_str)
+    if not op_func:
+        logger.warning(f"Unknown operator: '{op_str}'")
+        return False
+
     try:
-        return bool(eval(condition, {"__builtins__": safe_builtins}, context))
+        if left_expr == "len(history)":
+            left_value = len(context.get("history", []))
+        elif left_expr == "output":
+            left_value = context.get("output")
+        elif left_expr == "state.output":
+            state = context.get("state")
+            left_value = state.output if state else None
+        else:
+            return False
+
+        right_value: Any = right_expr.strip()
+        if right_value.isdigit():
+            right_value = int(right_value)
+        elif right_value.startswith(("'", '"')) and right_value.endswith(("'", '"')):
+            right_value = right_value[1:-1]
+        elif right_value.lower() == "true":
+            right_value = True
+        elif right_value.lower() == "false":
+            right_value = False
+        elif right_value.lower() == "none":
+            right_value = None
+
+        return op_func(left_value, right_value)
     except Exception as e:
         logger.warning(f"Condition '{condition}' failed: {e}")
         return False
@@ -41,10 +88,7 @@ def evaluate_condition(condition: str, context: dict) -> bool:
 
 @dataclass
 class AgentNode(BaseNode[WorkflowState]):
-    """A workflow node that executes an agent.
-
-    Subclasses set class-level attributes for agent, node_id, etc.
-    """
+    """A workflow node that executes an agent."""
 
     _agent: ClassVar[Agent[None, Any]]
     _node_id: ClassVar[str]
@@ -62,7 +106,7 @@ class AgentNode(BaseNode[WorkflowState]):
         logger.info(f"Executing node '{self._node_id}' with agent '{self._agent.name}'")
         result = await self._agent.run(prompt)
         output = result.output
-        output_text = _serialize_output(output)
+        output_text = serialize_output(output)
 
         state.history.append({
             "node": self._node_id,
@@ -124,8 +168,7 @@ def create_node_class(
     node_id: str,
     description: str | None = None,
 ) -> type[AgentNode]:
-    """Create a unique node class for a specific agent."""
-
+    """Create a node class for a specific agent."""
     class_name = f"{node_id.title().replace('_', '')}Node"
 
     node_class = type(

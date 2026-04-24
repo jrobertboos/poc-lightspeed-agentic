@@ -44,7 +44,6 @@ def create_agent(
     output_type: type = str
     if config.output_type:
         output_type = build_output_type(config.output_type)
-        logger.info(f"Agent '{config.name}' using structured output: {output_type.__name__}")
 
     agent: Agent[None, Any] = Agent(
         model=model,

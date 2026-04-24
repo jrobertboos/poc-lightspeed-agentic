@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from src.agents.registry import AgentRegistry
-from src.config.models import AppConfig
+from src.config.models import AppConfig, WorkflowConfig
 from src.log import get_logger
-from src.workflows.builder import WorkflowDefinition, build_workflow
-from src.workflows.runner import WorkflowRunner
-
-if TYPE_CHECKING:
-    pass
+from src.workflows.factory import create_workflow
+from src.workflows.workflow import Workflow
 
 logger = get_logger(__name__)
 
@@ -21,23 +16,20 @@ _registry: "WorkflowRegistry | None" = None
 class WorkflowRegistry:
     """Registry for storing and retrieving workflows by name."""
 
-    def __init__(self) -> None:
-        self._workflows: dict[str, WorkflowDefinition] = {}
-        self._runners: dict[str, WorkflowRunner] = {}
+    def __init__(self, agent_registry: AgentRegistry) -> None:
+        self._workflows: dict[str, Workflow] = {}
+        self._agent_registry = agent_registry
 
-    def register(self, workflow: WorkflowDefinition) -> None:
-        """Register a workflow definition."""
+    def register(self, config: WorkflowConfig) -> Workflow:
+        """Create and register a workflow from configuration."""
+        workflow = create_workflow(config, self._agent_registry)
         self._workflows[workflow.name] = workflow
-        self._runners[workflow.name] = WorkflowRunner(workflow)
-        logger.info(f"Registered workflow: {workflow.name}")
+        logger.debug(f"Created workflow '{workflow.name}'")
+        return workflow
 
-    def get(self, name: str) -> WorkflowDefinition | None:
-        """Retrieve a workflow definition by name."""
+    def get(self, name: str) -> Workflow | None:
+        """Retrieve a workflow by name, or None if not found."""
         return self._workflows.get(name)
-
-    def get_runner(self, name: str) -> WorkflowRunner | None:
-        """Retrieve a workflow runner by name."""
-        return self._runners.get(name)
 
     def list_workflows(self) -> list[str]:
         """Return a list of all registered workflow names."""
@@ -47,27 +39,29 @@ class WorkflowRegistry:
         return name in self._workflows
 
 
-def initialize_workflow_registry(
+def initialize_registry(
     config: AppConfig,
     agent_registry: AgentRegistry,
-) -> WorkflowRegistry | None:
+) -> WorkflowRegistry:
     """Initialize the global workflow registry from configuration."""
     global _registry
+    registry = WorkflowRegistry(agent_registry)
 
     if not config.workflows:
         logger.info("No workflow configurations found")
-        return None
+    else:
+        for workflow_config in config.workflows:
+            registry.register(workflow_config)
 
-    registry = WorkflowRegistry()
-
-    for workflow_config in config.workflows:
-        workflow_def = build_workflow(workflow_config, agent_registry)
-        registry.register(workflow_def)
+        workflow_names = ", ".join(registry.list_workflows())
+        logger.info(f"Registered {len(registry.list_workflows())} workflows: {workflow_names}")
 
     _registry = registry
     return registry
 
 
-def get_workflow_registry() -> WorkflowRegistry | None:
-    """Get the global workflow registry, or None if not initialized."""
+def get_registry() -> WorkflowRegistry:
+    """Get the global workflow registry, raising if not initialized."""
+    if _registry is None:
+        raise RuntimeError("Workflow registry not initialized. Call initialize_registry() first.")
     return _registry

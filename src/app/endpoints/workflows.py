@@ -9,7 +9,7 @@ from src.models import (
     WorkflowRunRequest,
     WorkflowRunResponse,
 )
-from src.workflows.registry import get_workflow_registry
+from src.workflows import get_registry
 
 logger = get_logger(__name__)
 
@@ -19,9 +19,7 @@ router = APIRouter(tags=["workflows"])
 @router.get("/workflows", response_model=WorkflowListResponse)
 async def list_workflows() -> WorkflowListResponse:
     """List all available workflows."""
-    registry = get_workflow_registry()
-    if registry is None:
-        return WorkflowListResponse(workflows=[])
+    registry = get_registry()
 
     workflows = []
     for name in registry.list_workflows():
@@ -31,8 +29,8 @@ async def list_workflows() -> WorkflowListResponse:
                 WorkflowResponse(
                     name=workflow.name,
                     description=workflow.description,
-                    start_node=workflow.config.start_node,
-                    nodes=[n.agent for n in workflow.config.nodes],
+                    start_node=workflow.start_node,
+                    nodes=workflow.nodes,
                 )
             )
 
@@ -42,9 +40,7 @@ async def list_workflows() -> WorkflowListResponse:
 @router.get("/workflows/{workflow_name}", response_model=WorkflowResponse)
 async def get_workflow(workflow_name: str) -> WorkflowResponse:
     """Get details for a specific workflow by name."""
-    registry = get_workflow_registry()
-    if registry is None:
-        raise HTTPException(status_code=404, detail="No workflows configured")
+    registry = get_registry()
 
     workflow = registry.get(workflow_name)
     if workflow is None:
@@ -53,20 +49,15 @@ async def get_workflow(workflow_name: str) -> WorkflowResponse:
     return WorkflowResponse(
         name=workflow.name,
         description=workflow.description,
-        start_node=workflow.config.start_node,
-        nodes=[n.agent for n in workflow.config.nodes],
+        start_node=workflow.start_node,
+        nodes=workflow.nodes,
     )
 
 
 @router.post("/workflows/run", response_model=WorkflowRunResponse)
 async def run_workflow(request: WorkflowRunRequest) -> WorkflowRunResponse:
     """Execute a workflow with the given input."""
-    registry = get_workflow_registry()
-    if registry is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No workflows configured",
-        )
+    registry = get_registry()
 
     workflow_names = registry.list_workflows()
     if not workflow_names:
@@ -76,15 +67,15 @@ async def run_workflow(request: WorkflowRunRequest) -> WorkflowRunResponse:
         )
 
     workflow_name = request.workflow_name or workflow_names[0]
-    runner = registry.get_runner(workflow_name)
+    workflow = registry.get(workflow_name)
 
-    if runner is None:
+    if workflow is None:
         raise HTTPException(
             status_code=404,
             detail=f"Workflow '{workflow_name}' not found. Available: {workflow_names}",
         )
 
-    result = await runner.run(request.message)
+    result = await workflow.run(request.message)
 
     if not result.success:
         raise HTTPException(
