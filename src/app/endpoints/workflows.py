@@ -41,8 +41,8 @@ async def list_workflows() -> WorkflowListResponse:
 async def get_workflow(workflow_name: str) -> WorkflowResponse:
     """Get details for a specific workflow by name."""
     registry = get_registry()
-
     workflow = registry.get(workflow_name)
+    
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
@@ -75,17 +75,16 @@ async def run_workflow(request: WorkflowRunRequest) -> WorkflowRunResponse:
             detail=f"Workflow '{workflow_name}' not found. Available: {workflow_names}",
         )
 
-    result = await workflow.run(request.message)
-
-    if not result.success:
+    try:
+        result = await workflow.run(request.message)
+    except Exception as e:
+        logger.error(f"Workflow '{workflow_name}' failed: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Workflow execution failed: {result.error}",
+            detail=f"Workflow execution failed: {e}",
         )
 
     return WorkflowRunResponse(
         output=result.output,
-        workflow_name=workflow_name,
         history=result.state.history,
-        success=result.success,
     )

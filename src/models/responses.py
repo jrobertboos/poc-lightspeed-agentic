@@ -52,8 +52,6 @@ class AgentRunResponse(BaseModel):
     """Response from running an agent."""
 
     output: Any = Field(..., description="Agent output")
-    agent_name: str = Field(..., description="Name of the agent that handled the request")
-    success: bool = Field(True, description="Whether the agent completed successfully")
     tool_calls: list[ToolCall] = Field(default_factory=list, description="Tool calls made during execution")
     tool_results: list[ToolResult] = Field(default_factory=list, description="Results from tool executions")
 
@@ -62,9 +60,7 @@ class WorkflowRunResponse(BaseModel):
     """Response from a workflow execution."""
 
     output: str = Field(..., description="Final workflow output")
-    workflow_name: str = Field(..., description="Name of the executed workflow")
     history: list[dict] = Field(default_factory=list, description="Execution history")
-    success: bool = Field(True, description="Whether workflow completed successfully")
 
 
 class WorkflowResponse(BaseModel):

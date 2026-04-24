@@ -24,8 +24,6 @@ class WorkflowRunResult:
 
     output: str
     state: WorkflowState
-    success: bool = True
-    error: str | None = None
 
 
 class Workflow:
@@ -64,24 +62,12 @@ class Workflow:
         logger.info(f"Starting workflow '{self.name}' with input: {user_input[:100]}...")
 
         state = create_initial_state(self._config, user_input)
+        start_node = self._start_node_class()
+        result = await self._graph.run(start_node, state=state)
 
-        try:
-            start_node = self._start_node_class()
-            result = await self._graph.run(start_node, state=state)
+        logger.info(f"Workflow '{self.name}' completed successfully")
 
-            logger.info(f"Workflow '{self.name}' completed successfully")
-
-            return WorkflowRunResult(
-                output=serialize_output(result.output),
-                state=state,
-                success=True,
-            )
-
-        except Exception as e:
-            logger.error(f"Workflow '{self.name}' failed: {e}")
-            return WorkflowRunResult(
-                output="",
-                state=state,
-                success=False,
-                error=str(e),
-            )
+        return WorkflowRunResult(
+            output=serialize_output(result.output),
+            state=state,
+        )
