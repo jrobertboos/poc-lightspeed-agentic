@@ -110,35 +110,41 @@ agents:
 workflows:
   - name: content_pipeline
     description: Review content, improve if needed, then publish when approved
-    start_node: content_reviewer
+    start_node: content_reviewer_node
 
     nodes:
-      - agent: content_reviewer
+      - name: content_reviewer_node
+        type: agent
+        agent: content_reviewer
         description: Review content quality and decide next steps
-      - agent: content_improver
+      - name: content_improver_node
+        type: agent
+        agent: content_improver
         description: Improve content based on reviewer feedback
-      - agent: publisher
+      - name: publisher_node
+        type: agent
+        agent: publisher
         description: Prepare approved content for publication
 
     edges:
       # If approved (quality_score >= 8), go directly to publisher
-      - from: content_reviewer
-        to: publisher
+      - from: content_reviewer_node
+        to: publisher_node
         condition: "output.approved and output.quality_score >= 8"
         label: approved
 
       # If not approved, send to improver
-      - from: content_reviewer
-        to: content_improver
+      - from: content_reviewer_node
+        to: content_improver_node
         condition: "not output.approved or output.quality_score < 8"
         label: needs_improvement
 
       # After improvement, go back to reviewer
-      - from: content_improver
-        to: content_reviewer
+      - from: content_improver_node
+        to: content_reviewer_node
         label: resubmit_for_review
 
       # Publisher outputs final result
-      - from: publisher
+      - from: publisher_node
         to: __end__
         label: published

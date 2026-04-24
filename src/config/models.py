@@ -40,7 +40,9 @@ class AgentConfig(BaseModel):
 class WorkflowNodeConfig(BaseModel):
     """Configuration for a node in a workflow graph."""
 
-    agent: str = Field(..., description="Name of the agent to use for this node")
+    name: str = Field(..., description="Node identifier")
+    type: str = Field(..., description="Node type (agent, function, shield)")
+    agent: str | None = Field(None, description="Agent name (required for agent nodes)")
     description: str | None = Field(None, description="Description of what this node does")
 
 
@@ -67,7 +69,7 @@ class WorkflowConfig(BaseModel):
     @model_validator(mode="after")
     def validate_workflow(self) -> "WorkflowConfig":
         """Validate workflow structure."""
-        node_names = {n.agent for n in self.nodes}
+        node_names = {n.name for n in self.nodes}
 
         if self.start_node not in node_names:
             raise ValueError(f"start_node '{self.start_node}' is not defined in nodes")

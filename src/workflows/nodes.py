@@ -1,20 +1,20 @@
-"""Workflow node definitions wrapping agents for pydantic-graph."""
+"""Workflow node definitions for pydantic-graph."""
 
 from __future__ import annotations
 
 import operator
 import re
+from abc import abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import Any, ClassVar
 
 from pydantic import BaseModel
+from pydantic_ai import Agent
 from pydantic_graph import BaseNode, End, GraphRunContext
 
 from src.log import get_logger
 from src.workflows.state import WorkflowState
 
-if TYPE_CHECKING:
-    from pydantic_ai import Agent
 
 logger = get_logger(__name__)
 
@@ -87,14 +87,58 @@ def evaluate_condition(condition: str, context: dict[str, Any]) -> bool:
 
 
 @dataclass
-class AgentNode(BaseNode[WorkflowState]):
-    """A workflow node that executes an agent."""
+class WorkflowNode(BaseNode[WorkflowState]):
+    """Base class for all workflow nodes."""
 
-    _agent: ClassVar[Agent[None, Any]]
+    _name: ClassVar[str]
     _node_id: ClassVar[str]
     _description: ClassVar[str | None]
     _conditional_edges: ClassVar[list[tuple[str, type[BaseNode[WorkflowState]] | type[End]]]]
     _default_next: ClassVar[type[BaseNode[WorkflowState]] | type[End] | None]
+
+    @abstractmethod
+    async def run(
+        self, ctx: GraphRunContext[WorkflowState]
+    ) -> BaseNode[WorkflowState] | End[Any]:
+        """Execute the node and determine the next node."""
+        ...
+
+    def _resolve_next_node(
+        self, output: Any, state: WorkflowState
+    ) -> type[BaseNode[WorkflowState]] | type[End] | None:
+        """Evaluate conditional edges and return the first matching target."""
+        context = {
+            "output": output,
+            "state": state,
+            "history": state.history,
+            "input": state.input,
+        }
+
+        for condition, target in self._conditional_edges:
+            if evaluate_condition(condition, context):
+                logger.debug(f"Condition '{condition}' matched, routing to {target}")
+                return target
+
+        return self._default_next
+
+    def _record_output(self, state: WorkflowState, output: Any, output_text: str, **extra: Any) -> None:
+        """Record node execution to workflow history."""
+        entry = {
+            "node": self._node_id,
+            "output": output,
+            "output_text": output_text,
+            **extra,
+        }
+        state.history.append(entry)
+        state.output = output
+        state.current_node = self._node_id
+
+
+@dataclass
+class AgentNode(WorkflowNode):
+    """A workflow node that executes an agent."""
+
+    _agent: ClassVar[Agent[None, Any]]
 
     async def run(
         self, ctx: GraphRunContext[WorkflowState]
@@ -108,14 +152,7 @@ class AgentNode(BaseNode[WorkflowState]):
         output = result.output
         output_text = serialize_output(output)
 
-        state.history.append({
-            "node": self._node_id,
-            "agent": self._agent.name,
-            "output": output,
-            "output_text": output_text,
-        })
-        state.output = output
-        state.current_node = self._node_id
+        self._record_output(state, output, output_text, agent=self._agent.name)
 
         logger.debug(f"Node '{self._node_id}' completed, output length: {len(output_text)}")
 
@@ -144,42 +181,26 @@ class AgentNode(BaseNode[WorkflowState]):
 
         return "\n".join(parts)
 
-    def _resolve_next_node(
-        self, output: Any, state: WorkflowState
-    ) -> type[BaseNode[WorkflowState]] | type[End] | None:
-        """Evaluate conditional edges and return the first matching target."""
-        context = {
-            "output": output,
-            "state": state,
-            "history": state.history,
-            "input": state.input,
-        }
 
-        for condition, target in self._conditional_edges:
-            if evaluate_condition(condition, context):
-                logger.debug(f"Condition '{condition}' matched, routing to {target}")
-                return target
-
-        return self._default_next
-
-
-def create_node_class(
+def create_agent_node_class(
     agent: Agent[None, Any],
     node_id: str,
+    name: str,
     description: str | None = None,
 ) -> type[AgentNode]:
     """Create a node class for a specific agent."""
-    class_name = f"{node_id.title().replace('_', '')}Node"
+    class_name = node_id.title().replace('_', '')
 
     node_class = type(
         class_name,
         (AgentNode,),
         {
             "__module__": __name__,
-            "__doc__": description or f"Node executing agent: {agent.name}",
+            "__doc__": f"Node executing agent: {agent.name}",
+            "_name": name,
             "_agent": agent,
             "_node_id": node_id,
-            "_description": description,
+            "_description": description or agent.description,
             "_conditional_edges": [],
             "_default_next": None,
         },

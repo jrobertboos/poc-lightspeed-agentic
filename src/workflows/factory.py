@@ -7,7 +7,7 @@ from pydantic_graph import End, Graph
 from src.agents.registry import AgentRegistry
 from src.config.models import WorkflowConfig
 from src.log import get_logger
-from src.workflows.nodes import AgentNode, create_node_class
+from src.workflows.nodes import AgentNode, create_agent_node_class
 from src.workflows.state import WorkflowState
 from src.workflows.workflow import Workflow
 
@@ -32,19 +32,28 @@ def create_workflow(
     node_classes: dict[str, type[AgentNode]] = {}
 
     for node_config in config.nodes:
-        agent = registry.get(node_config.agent)
-        if agent is None:
-            raise ValueError(
-                f"Workflow '{config.name}' references unknown agent '{node_config.agent}'"
-            )
+        if node_config.type == "agent":
+            if not node_config.agent:
+                raise ValueError(
+                    f"Workflow '{config.name}' node '{node_config.name}' requires 'agent' field"
+                )
+            agent = registry.get(node_config.agent)
+            if agent is None:
+                raise ValueError(
+                    f"Workflow '{config.name}' node '{node_config.name}' references unknown agent '{node_config.agent}'"
+                )
 
-        node_class = create_node_class(
-            agent=agent,
-            node_id=node_config.agent,
-            description=node_config.description,
-        )
-        node_classes[node_config.agent] = node_class
-        logger.debug(f"Created node for agent '{node_config.agent}'")
+            node_class = create_agent_node_class(
+                agent=agent,
+                node_id=node_config.name,
+                name=node_config.name,
+                description=node_config.description,
+            )
+        else:
+            raise ValueError(f"Unknown node type '{node_config.type}' for node '{node_config.name}'")
+
+        node_classes[node_config.name] = node_class
+        logger.debug(f"Created {node_config.type} node '{node_config.name}'")
 
     _wire_edges(config, node_classes)
 
